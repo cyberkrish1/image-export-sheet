@@ -1,6 +1,6 @@
 # Style Image Export
 
-Upload an Excel/CSV with Style Codes in the first column → the site looks up each code's folder in Google Drive → download the same sheet with `Image 1, Image 2, …` links and a `Status` column.
+Upload an Excel/CSV with Style Codes (age-group suffix allowed, e.g. `BLPTSW477-23`) in the first column → the site looks up each style's folder in Google Drive → download the same sheet with `Image 1, Image 2, …` links added.
 
 Google access is configured **once on the server** (a service account). Nobody logs in to Google, nobody enters an API key, and no credential ever reaches the browser.
 
@@ -14,17 +14,22 @@ Browser builds the Excel/CSV from your original rows + links
 
 ## How the lookup works
 
-For each Style Code (e.g. `BLPTSW477`):
+The **Style Code is the part before the first dash**. The part after the dash is the age group and is ignored for the lookup, because every age group uses the same images. Codes with no dash work too, and a sheet can mix both.
 
-1. Search Drive for a **folder named exactly** `BLPTSW477` (case-insensitive, no partial matches).
-2. Found → list **every image inside that folder** (`BLPTSW477 (1).JPG`, `(2)`, … any count, 100s are fine), sorted 1, 2, 3 … 10, 11.
-3. Folder missing → row kept, `Status = Not Found`, and a warning shows: *Folder "X" does not exist in Drive.*
-4. Folder exists but has no images → `Not Found`, with a warning saying so.
-5. Google/network failure for that code → `Status = Error` (the reason is shown).
+| Sheet value | Folder searched in Drive |
+|---|---|
+| `BLPTSW477-23`, `BLPTSW477-34`, `BLPTSW477-910` | `BLPTSW477` (one lookup, shared by all rows) |
+| `BLPTSW477` | `BLPTSW477` |
 
-If your sheet holds age-group SKUs like `BLPTSW477-23`, the exact value is tried first, then the part before the last short `-suffix` (`BLPTSW477`). If your sheet holds plain style codes, nothing changes.
+For each Style Code:
 
-Output columns: **all your original columns**, then `Image 1 … Image N` (N = the most images any row has), then `Status`.
+1. Search Drive for a **folder named exactly** that code (case-insensitive, no partial matches).
+2. Found → list **every image inside that folder** (`BLPTSW477 (1).JPG`, `(2)`, … any count), sorted 1, 2, 3 … 10, 11.
+3. Folder missing → the on-screen results warn: *Folder "X" does not exist in Drive.* The rows stay in the sheet with empty image cells.
+4. Folder exists but has no images → warning says so.
+5. Google/network failure → shown as an error on screen with the reason.
+
+Output columns: **all your original columns**, then `Image 1 … Image N` (N = the most images any style has). There is no Status column in the downloaded file; Found / Not Found / Error are shown on screen only.
 
 ---
 
@@ -130,7 +135,7 @@ The links are normal Drive links. They open for people who **have access to the 
 | Problem in the old code | Now |
 |---|---|
 | Only column A kept; other columns lost | All original columns preserved |
-| Headers `a, b, c` | `Image 1, Image 2, …` + `Status` |
+| Headers `a, b, c` | `Image 1, Image 2, …` |
 | Links pointed at your own website's `/api/image` proxy | Real Google Drive links |
 | Silently searched loose files when the folder was missing | Folder-only; clear "folder doesn't exist" warning |
 | Every code in one request (times out on big sheets) | Batches of 10, 3 in parallel, live progress |
