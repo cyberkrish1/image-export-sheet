@@ -1,0 +1,14 @@
+{
+  "name": "style-image-export",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Upload a sheet of Style Codes, get Google Drive image links back.",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node --test test/drive.test.mjs test/sheet.test.mjs"
+  },
+  "dependencies": {
+    "googleapis": "^140.0.1"
+  }
+}
