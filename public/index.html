@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Style Image Export</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="/sheet-logic.js"></script>
+<style>
+  :root{
+    --bg:#15171a; --panel:#1e2126; --panel-2:#262a31; --line:#33373f;
+    --amber:#ff9d2f; --amber-dim:#7a5324; --green:#3ecf8e; --red:#ff5c5c;
+    --text:#eef0f2; --text-dim:#9aa1ab;
+    --mono:'SF Mono','Roboto Mono',Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
+  body{min-height:100vh;display:flex;justify-content:center;padding:0 0 60px;}
+  .app{width:100%;max-width:960px;padding:20px 16px 0;}
+  .header{display:flex;align-items:center;gap:10px;padding:6px 2px 18px;border-bottom:1px solid var(--line);margin-bottom:16px;}
+  .header .tick{width:10px;height:10px;background:var(--amber);box-shadow:0 0 0 3px var(--amber-dim);}
+  .header h1{font-size:15px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;margin:0;}
+  .chip{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--text-dim);display:flex;align-items:center;gap:6px;cursor:default;}
+  .chip .dot{width:8px;height:8px;border-radius:50%;background:var(--text-dim);}
+  .chip.ok .dot{background:var(--green);} .chip.bad .dot{background:var(--red);}
+
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:2px;padding:16px;margin-bottom:14px;}
+  .step-label{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--text-dim);text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+  .step-label .num{width:18px;height:18px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:10px;}
+
+  .upload-box{border:1px dashed var(--line);border-radius:2px;padding:34px 16px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;color:var(--text-dim);
+    background:repeating-linear-gradient(45deg,#1a1c20,#1a1c20 10px,#191b1f 10px,#191b1f 20px);text-align:center;}
+  .upload-box.drag{border-color:var(--amber);color:var(--amber);}
+  .upload-box svg{width:34px;height:34px;stroke:currentColor;}
+  .upload-box .cta{font-size:14px;font-weight:600;color:var(--text);}
+  .upload-box .hint{font-size:12px;font-family:var(--mono);max-width:520px;line-height:1.5;}
+
+  .opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px;}
+  .opt label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;}
+  select{width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--text);font-size:13px;padding:9px 10px;border-radius:2px;}
+  .check{display:flex;align-items:center;gap:8px;font-size:13px;padding-top:22px;}
+  input[type=password]{width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--amber);font-family:var(--mono);font-size:15px;padding:11px 12px;border-radius:2px;}
+
+  .btn{width:100%;padding:13px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;border-radius:2px;cursor:pointer;}
+  .btn-primary{background:var(--amber);border-color:var(--amber);color:#1a1200;}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  .btn-row{display:flex;gap:10px;margin-top:14px;} .btn-row .btn{flex:1;}
+  .link-btn{display:block;text-align:center;font-family:var(--mono);font-size:11px;color:var(--text-dim);text-decoration:underline;cursor:pointer;margin-top:12px;}
+
+  .stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;}
+  .stat-box{background:var(--panel-2);border:1px solid var(--line);border-radius:2px;padding:12px;text-align:center;}
+  .stat-box .n{font-family:var(--mono);font-size:22px;color:var(--amber);font-weight:700;}
+  .stat-box.g .n{color:var(--green);} .stat-box.r .n{color:var(--red);}
+  .stat-box .l{font-family:var(--mono);font-size:10px;color:var(--text-dim);letter-spacing:.06em;text-transform:uppercase;margin-top:4px;}
+  .bar{height:6px;background:var(--panel-2);border-radius:3px;overflow:hidden;margin-top:14px;}
+  .bar>div{height:100%;background:var(--green);width:0%;transition:width .25s;}
+  .ptext{font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:6px;text-align:center;}
+
+  .error-box{border:1px solid var(--red);background:rgba(255,92,92,.08);color:#ffb3b3;font-size:12.5px;padding:10px 12px;border-radius:2px;margin-top:10px;font-family:var(--mono);line-height:1.5;}
+  .warn-box{border:1px solid var(--amber);background:rgba(255,157,47,.08);color:#ffd39b;font-size:12.5px;padding:10px 12px;border-radius:2px;margin-top:14px;font-family:var(--mono);line-height:1.5;}
+  .warn-box .t{color:var(--amber);font-weight:700;margin-bottom:6px;}
+  .warn-box ul{margin:0;padding-left:18px;max-height:200px;overflow:auto;} .warn-box li{margin-bottom:3px;}
+  .note{font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:8px;line-height:1.5;}
+
+  .tablewrap{overflow:auto;max-height:420px;border:1px solid var(--line);margin-top:14px;}
+  table{border-collapse:collapse;width:100%;font-size:12.5px;}
+  th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;}
+  th{position:sticky;top:0;background:var(--panel-2);font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim);}
+  td.mono{font-family:var(--mono);}
+  .badge{font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:9px;letter-spacing:.04em;}
+  .badge.Found{background:rgba(62,207,142,.15);color:var(--green);}
+  .badge.NotFound{background:rgba(255,157,47,.15);color:var(--amber);}
+  .badge.Error{background:rgba(255,92,92,.15);color:var(--red);}
+  .spin{display:inline-block;width:11px;height:11px;border:2px solid var(--line);border-top-color:var(--amber);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:6px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  [hidden]{display:none !important;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="header">
+    <div class="tick"></div>
+    <h1>Style Image Export</h1>
+    <div class="chip" id="conn"><span class="dot"></span><span id="connText">checking Drive…</span></div>
+  </div>
+
+  <!-- access code (only shown if the server has APP_PASSWORD set) -->
+  <div class="step" id="pwCard" hidden>
+    <div class="step-label">Access code</div>
+    <input type="password" id="pwInput" placeholder="Enter access code" autocomplete="current-password">
+    <div class="btn-row"><button class="btn btn-primary" id="pwBtn">Continue</button></div>
+    <div id="pwError"></div>
+  </div>
+
+  <!-- 1. upload -->
+  <div class="step" id="stepUpload">
+    <div class="step-label"><span class="num">1</span> Upload sheet</div>
+    <label class="upload-box" id="dropBox" for="fileInput">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M12 3v12m0-12l-4 4m4-4l4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+      <div class="cta">Click to upload, or drop a file here (.xlsx / .xls / .csv)</div>
+      <div class="hint">Style Codes go in the <b>first column</b>. All your other columns are kept.<br>e.g. BLPTSW477 &nbsp;(a folder with that exact name is looked up in Drive)</div>
+    </label>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" hidden>
+    <div id="uploadStatus"></div>
+  </div>
+
+  <!-- 2. options -->
+  <div class="step" id="stepOptions" hidden>
+    <div class="step-label"><span class="num">2</span> Check &amp; run</div>
+    <div class="note" id="fileSummary" style="margin:0 0 12px"></div>
+    <div class="opts">
+      <div class="opt" id="sheetOpt" hidden><label>Sheet</label><select id="sheetSelect"></select></div>
+      <div class="opt"><label>Link type</label>
+        <select id="linkMode">
+          <option value="view">Drive view link (opens the image page)</option>
+          <option value="direct">Direct image link (uc?export=view)</option>
+        </select>
+      </div>
+      <div class="opt"><div class="check"><input type="checkbox" id="hasHeader" checked><label for="hasHeader" style="margin:0;text-transform:none;font-size:13px;color:var(--text);letter-spacing:0;font-family:var(--sans)">First row is a header</label></div></div>
+    </div>
+    <button class="btn btn-primary" id="runBtn">Find images in Drive</button>
+    <div class="link-btn" id="resetLink1">← Choose a different file</div>
+  </div>
+
+  <!-- 3. progress + results -->
+  <div class="step" id="stepRun" hidden>
+    <div class="step-label"><span class="num">3</span> Results</div>
+    <div class="stats-row">
+      <div class="stat-box"><div class="n" id="sRows">0</div><div class="l">Rows</div></div>
+      <div class="stat-box"><div class="n" id="sCodes">0</div><div class="l">Unique codes</div></div>
+      <div class="stat-box g"><div class="n" id="sFound">0</div><div class="l">Found</div></div>
+      <div class="stat-box"><div class="n" id="sNot">0</div><div class="l">Not found</div></div>
+      <div class="stat-box r"><div class="n" id="sErr">0</div><div class="l">Errors</div></div>
+      <div class="stat-box"><div class="n" id="sImgs">0</div><div class="l">Image links</div></div>
+    </div>
+    <div class="bar"><div id="barFill"></div></div>
+    <div class="ptext" id="ptext"></div>
+    <div id="runError"></div>
+    <div id="warnBox"></div>
+    <div class="tablewrap" id="tableWrap" hidden></div>
+    <div class="btn-row" id="dlRow" hidden>
+      <button class="btn btn-primary" id="dlXlsx">⬇ Download Excel (.xlsx)</button>
+      <button class="btn" id="dlCsv">⬇ Download CSV</button>
+    </div>
+    <div class="link-btn" id="resetLink2">← Start over with another file</div>
+  </div>
+</div>
+
+<script>
+const CHUNK = 10;      // style codes per request (keeps every call well under Vercel's time limit)
+const PARALLEL = 3;    // requests in flight at once
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const { parseSheet, buildOutput, codeOf } = window.SheetLogic;
+
+let loaded = null;     // { workbook, name }
+let parsed = null;     // { header, rows }
+let results = {};      // code -> {status, matchedCode, images, message}
+let outputAoa = null;
+let outName = 'image_export';
+let runToken = 0;
+
+/* ---------- API helper ---------- */
+async function api(path, body) {
+  const headers = { 'Content-Type': 'application/json' };
+  const pw = localStorage.getItem('ie_pw');
+  if (pw) headers['x-app-password'] = pw;
+  const res = await fetch(path, body
+    ? { method: 'POST', headers, body: JSON.stringify(body) }
+    : { headers });
+  let data = {};
+  try { data = await res.json(); } catch {}
+  if (res.status === 401 && data.needsPassword) { showPassword(); const e = new Error('Access code required.'); e.auth = true; throw e; }
+  if (!res.ok) { const e = new Error(data.error || 'Request failed (' + res.status + ')'); e.setup = !!data.setup; throw e; }
+  return data;
+}
+
+/* ---------- access code ---------- */
+function showPassword() { $('pwCard').hidden = false; $('stepUpload').hidden = true; }
+$('pwBtn').onclick = () => {
+  const v = $('pwInput').value;
+  if (!v) return;
+  localStorage.setItem('ie_pw', v);
+  $('pwCard').hidden = true; $('stepUpload').hidden = false;
+  checkConnection();
+};
+$('pwInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('pwBtn').click(); });
+
+/* ---------- connection check ---------- */
+async function checkConnection() {
+  const chip = $('conn');
+  try {
+    const d = await api('/api/health');
+    chip.className = 'chip ok';
+    $('connText').textContent = d.visibleFolders.length ? 'Drive connected' : 'Drive connected — no folders shared yet';
+    chip.title = d.hint + '\nService account: ' + d.serviceAccount;
+    if (!d.visibleFolders.length) {
+      $('uploadStatus').innerHTML = `<div class="warn-box"><div class="t">⚠ Nothing is shared with the service account yet</div>Share your top-level Drive folder with <b>${esc(d.serviceAccount)}</b> (Viewer), then reload this page.</div>`;
+    }
+  } catch (e) {
+    if (e.auth) return;
+    chip.className = 'chip bad';
+    $('connText').textContent = 'Drive not connected';
+    $('uploadStatus').innerHTML = `<div class="error-box">${esc(e.message)}<br>See the setup guide (README) — Step 4 &amp; 5.</div>`;
+  }
+}
+
+/* ---------- file loading ---------- */
+const dropBox = $('dropBox');
+['dragenter', 'dragover'].forEach((ev) => dropBox.addEventListener(ev, (e) => { e.preventDefault(); dropBox.classList.add('drag'); }));
+['dragleave', 'drop'].forEach((ev) => dropBox.addEventListener(ev, (e) => { e.preventDefault(); dropBox.classList.remove('drag'); }));
+dropBox.addEventListener('drop', (e) => { if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+$('fileInput').addEventListener('change', (e) => { if (e.target.files[0]) handleFile(e.target.files[0]); e.target.value = ''; });
+
+async function handleFile(file) {
+  $('uploadStatus').innerHTML = `<div class="note"><span class="spin"></span>Reading ${esc(file.name)}…</div>`;
+  try {
+    let wb;
+    if (/\.csv$/i.test(file.name)) wb = XLSX.read(await file.text(), { type: 'string' });
+    else wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    loaded = { workbook: wb, name: file.name };
+    outName = file.name.replace(/\.(xlsx|xls|csv)$/i, '');
+
+    const sel = $('sheetSelect');
+    sel.innerHTML = wb.SheetNames.map((n) => `<option>${esc(n)}</option>`).join('');
+    $('sheetOpt').hidden = wb.SheetNames.length < 2;
+
+    $('uploadStatus').innerHTML = '';
+    if (!refreshParsed()) return;
+    $('stepUpload').hidden = true;
+    $('stepOptions').hidden = false;
+  } catch (err) {
+    $('uploadStatus').innerHTML = `<div class="error-box">Could not read that file: ${esc(err.message)}</div>`;
+  }
+}
+
+function refreshParsed() {
+  const ws = loaded.workbook.Sheets[$('sheetSelect').value || loaded.workbook.SheetNames[0]];
+  const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  parsed = parseSheet(aoa, $('hasHeader').checked);
+  const codes = new Set(parsed.rows.map(codeOf).filter(Boolean));
+  if (!parsed.rows.length || !codes.size) {
+    $('uploadStatus').innerHTML = '<div class="error-box">No Style Codes found in the first column of that sheet.</div>';
+    return false;
+  }
+  $('fileSummary').innerHTML = `<b>${esc(loaded.name)}</b> — ${parsed.rows.length} rows, ${parsed.header.length} columns, <b>${codes.size}</b> unique style codes (first column: “${esc(parsed.header[0])}”).`;
+  return true;
+}
+$('sheetSelect').onchange = refreshParsed;
+$('hasHeader').onchange = refreshParsed;
+
+/* ---------- run ---------- */
+$('runBtn').onclick = runExport;
+
+async function runExport() {
+  const token = ++runToken;
+  results = {}; outputAoa = null;
+  const codes = [...new Set(parsed.rows.map(codeOf).filter(Boolean))];
+  $('stepOptions').hidden = true;
+  $('stepRun').hidden = false;
+  $('dlRow').hidden = true; $('tableWrap').hidden = true;
+  $('warnBox').innerHTML = ''; $('runError').innerHTML = '';
+  $('sRows').textContent = parsed.rows.length;
+  $('sCodes').textContent = codes.length;
+  updateStats(codes.length);
+
+  const chunks = [];
+  for (let i = 0; i < codes.length; i += CHUNK) chunks.push(codes.slice(i, i + CHUNK));
+  let next = 0, done = 0, fatal = null;
+
+  async function worker() {
+    while (next < chunks.length && !fatal && token === runToken) {
+      const chunk = chunks[next++];
+      let data = null;
+      for (let attempt = 0; attempt < 2 && !data; attempt++) {
+        try { data = await api('/api/lookup', { codes: chunk }); }
+        catch (e) {
+          if (e.setup || e.auth) { fatal = e; return; }
+          if (attempt === 1) {
+            data = { results: Object.fromEntries(chunk.map((c) => [c, { status: 'Error', images: [], message: e.message }])) };
+          }
+        }
+      }
+      Object.assign(results, data.results);
+      done += chunk.length;
+      $('barFill').style.width = Math.round((done / codes.length) * 100) + '%';
+      $('ptext').innerHTML = `<span class="spin"></span>Checked ${done} of ${codes.length} style codes…`;
+      updateStats(codes.length);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(PARALLEL, chunks.length) }, worker));
+  if (token !== runToken) return;
+
+  if (fatal) {
+    $('runError').innerHTML = `<div class="error-box">${esc(fatal.message)}</div>`;
+    $('ptext').textContent = 'Stopped.';
+    return;
+  }
+  finish(codes);
+}
+
+function updateStats() {
+  const v = Object.values(results);
+  $('sFound').textContent = v.filter((r) => r.status === 'Found').length;
+  $('sNot').textContent = v.filter((r) => r.status === 'Not Found').length;
+  $('sErr').textContent = v.filter((r) => r.status === 'Error').length;
+  $('sImgs').textContent = v.reduce((n, r) => n + (r.images || []).length, 0);
+}
+
+function finish(codes) {
+  const out = buildOutput(parsed.header, parsed.rows, results, $('linkMode').value);
+  outputAoa = out.aoa;
+  $('barFill').style.width = '100%';
+  $('ptext').textContent = `Done — ${codes.length} style code(s), up to ${out.maxImages} image(s) per style.`;
+
+  // warnings, one line per style code
+  const bad = codes.filter((c) => results[c] && results[c].status !== 'Found');
+  if (bad.length) {
+    const li = bad.map((c) => {
+      const r = results[c];
+      const rowsN = parsed.rows.filter((row) => codeOf(row) === c).length;
+      return `<li><b>${esc(c)}</b> — ${esc(r.message || r.status)}${rowsN > 1 ? ` (${rowsN} rows)` : ''}</li>`;
+    }).join('');
+    $('warnBox').innerHTML = `<div class="warn-box"><div class="t">⚠ ${bad.length} of ${codes.length} style code(s) need attention — those rows are kept with empty image cells:</div><ul>${li}</ul></div>`;
+  }
+
+  // preview table
+  const shown = out.perRow.slice(0, 300);
+  $('tableWrap').innerHTML = `<table><thead><tr><th>${esc(parsed.header[0])}</th><th>Status</th><th>Images</th><th>Drive folder used</th></tr></thead><tbody>` +
+    shown.map(({ code, res }) => `<tr><td class="mono">${esc(code)}</td><td><span class="badge ${res.status.replace(' ', '')}">${esc(res.status)}</span></td><td class="mono">${(res.images || []).length}</td><td class="mono">${esc(res.matchedCode || '—')}</td></tr>`).join('') +
+    `</tbody></table>` + (out.perRow.length > shown.length ? `<div class="note" style="padding:8px">Showing first ${shown.length} of ${out.perRow.length} rows — the download has all of them.</div>` : '');
+  $('tableWrap').hidden = false;
+  $('dlRow').hidden = false;
+}
+
+/* ---------- downloads ---------- */
+function buildWorksheet() {
+  const ws = XLSX.utils.aoa_to_sheet(outputAoa);
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (let r = 1; r <= range.e.r; r++) {
+    for (let c = 0; c <= range.e.c; c++) {
+      const cell = ws[XLSX.utils.encode_cell({ r, c })];
+      if (cell && typeof cell.v === 'string' && /^https:\/\/drive\.google\.com\//.test(cell.v)) cell.l = { Target: cell.v };
+    }
+  }
+  ws['!cols'] = outputAoa[0].map((h, i) => ({ wch: /^Image \d+/.test(h) ? 48 : i === 0 ? 20 : 16 }));
+  return ws;
+}
+function save(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+$('dlXlsx').onclick = () => {
+  if (!outputAoa) return;
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, buildWorksheet(), 'Images');
+  XLSX.writeFile(wb, outName + '_images.xlsx');
+};
+$('dlCsv').onclick = () => {
+  if (!outputAoa) return;
+  const csv = XLSX.utils.sheet_to_csv(buildWorksheet());
+  save(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }), outName + '_images.csv');
+};
+
+/* ---------- reset ---------- */
+function reset() {
+  runToken++;
+  loaded = parsed = outputAoa = null; results = {};
+  $('stepRun').hidden = true; $('stepOptions').hidden = true; $('stepUpload').hidden = false;
+  $('uploadStatus').innerHTML = '';
+  $('barFill').style.width = '0%';
+}
+$('resetLink1').onclick = reset;
+$('resetLink2').onclick = reset;
+
+checkConnection();
+</script>
+</body>
+</html>
