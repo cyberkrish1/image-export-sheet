@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveBatch, candidatesFor, sortImages, escapeQ, loadCredentials } from '../lib/drive.js';
+import { resolveBatch, candidatesFor, styleCodeOf, sortImages, escapeQ, loadCredentials } from '../lib/drive.js';
 
 const F = 'application/vnd.google-apps.folder';
 // fake Drive tree
@@ -63,11 +63,19 @@ test('folder exists but empty -> Not Found (says so)', async () => {
   assert.match(r.message, /no images/);
 });
 
-test('age-group SKU falls back to style folder; exact folder wins first', async () => {
-  const res = await resolveBatch(fake, ['BLPNANW322B-23', 'BLPNANW322B-910']);
-  assert.equal(res['BLPNANW322B-23'].status, 'Found');
-  assert.equal(res['BLPNANW322B-23'].matchedCode, 'BLPNANW322B');
-  assert.equal(res['BLPNANW322B-910'].images.length, 10);
+test('age-group SKUs use ONLY the part before the dash; no-dash codes work too', async () => {
+  const res = await resolveBatch(fake, ['BLPNANW322B-23', 'BLPNANW322B-910', 'BLPNANW322B']);
+  for (const k of Object.keys(res)) {
+    assert.equal(res[k].status, 'Found', k);
+    assert.equal(res[k].matchedCode, 'BLPNANW322B');
+    assert.equal(res[k].images.length, 10);
+  }
+});
+
+test('age-group SKU whose style folder is missing warns with the STYLE code', async () => {
+  const r = (await resolveBatch(fake, ['NOFOLDER9-45'])) ['NOFOLDER9-45'];
+  assert.equal(r.status, 'Not Found');
+  assert.match(r.message, /Folder "NOFOLDER9" does not exist in Drive/);
 });
 
 test('duplicate-named folders: uses the one with images', async () => {
@@ -101,10 +109,12 @@ test('empty code -> Error; batch dedupes; few API calls', async () => {
   assert.ok(calls <= 3, 'calls=' + calls);
 });
 
-test('candidatesFor', () => {
-  assert.deepEqual(candidatesFor('BLPTSW477'), ['BLPTSW477']);
-  assert.deepEqual(candidatesFor(' BLPTSW477-23 '), ['BLPTSW477-23', 'BLPTSW477']);
-  assert.deepEqual(candidatesFor('BLPTSW477-NAVYBLUE'), ['BLPTSW477-NAVYBLUE']); // long tail: not stripped
+test('styleCodeOf / candidatesFor', () => {
+  assert.equal(styleCodeOf('BLPTSW477'), 'BLPTSW477');
+  assert.equal(styleCodeOf(' BLPTSW477-23 '), 'BLPTSW477');
+  assert.equal(styleCodeOf('BLPTSW477-910'), 'BLPTSW477');
+  assert.equal(styleCodeOf('BLPTSW477-2-3'), 'BLPTSW477');
+  assert.deepEqual(candidatesFor('BLPTSPB460-78'), ['BLPTSPB460']);
 });
 
 test('credentials: newline fix, b64, and clear errors', () => {
