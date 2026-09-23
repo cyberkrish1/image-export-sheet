@@ -74,6 +74,8 @@
   .badge.Error{background:rgba(255,92,92,.15);color:var(--red);}
   .spin{display:inline-block;width:11px;height:11px;border:2px solid var(--line);border-top-color:var(--amber);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:6px;}
   @keyframes spin{to{transform:rotate(360deg);}}
+  .share-note{margin-top:12px;border:1px solid var(--amber);background:rgba(255,157,47,.08);color:#ffd39b;font-family:var(--mono);font-size:12px;line-height:1.6;padding:10px 12px;border-radius:2px;word-break:break-all;}
+  .share-note b{color:var(--amber);}
   [hidden]{display:none !important;}
 </style>
 </head>
@@ -100,7 +102,7 @@
     <label class="upload-box" id="dropBox" for="fileInput">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M12 3v12m0-12l-4 4m4-4l4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
       <div class="cta">Click to upload, or drop a file here (.xlsx / .xls / .csv)</div>
-      <div class="hint">Style Codes go in the <b>first column</b>. All your other columns are kept.<br>e.g. BLPTSW477 &nbsp;(a folder with that exact name is looked up in Drive)</div>
+      <div class="hint">Style Codes go in the <b>first column</b>. All your other columns are kept.<br>Age groups are fine: <b>BLPTSW477-23</b> looks up the folder <b>BLPTSW477</b> (the part before the dash). Codes without a dash work too.</div>
     </label>
     <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" hidden>
     <div id="uploadStatus"></div>
@@ -120,7 +122,8 @@
       </div>
       <div class="opt"><div class="check"><input type="checkbox" id="hasHeader" checked><label for="hasHeader" style="margin:0;text-transform:none;font-size:13px;color:var(--text);letter-spacing:0;font-family:var(--sans)">First row is a header</label></div></div>
     </div>
-    <button class="btn btn-primary" id="runBtn">Find images in Drive</button>
+    <button class="btn btn-primary" id="runBtn">Continue</button>
+    <div class="share-note"><b>NOTE:</b> PLEASE SHARE THE DRIVE WITH <b>image-export-sheet@style-finder-504520.iam.gserviceaccount.com</b> AND SET TO <b>VIEW</b></div>
     <div class="link-btn" id="resetLink1">← Choose a different file</div>
   </div>
 
@@ -153,7 +156,7 @@ const CHUNK = 10;      // style codes per request (keeps every call well under V
 const PARALLEL = 3;    // requests in flight at once
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const { parseSheet, buildOutput, codeOf } = window.SheetLogic;
+const { parseSheet, buildOutput, codeOf, styleCodeOf } = window.SheetLogic;
 
 let loaded = null;     // { workbook, name }
 let parsed = null;     // { header, rows }
@@ -240,12 +243,12 @@ function refreshParsed() {
   const ws = loaded.workbook.Sheets[$('sheetSelect').value || loaded.workbook.SheetNames[0]];
   const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
   parsed = parseSheet(aoa, $('hasHeader').checked);
-  const codes = new Set(parsed.rows.map(codeOf).filter(Boolean));
+  const codes = new Set(parsed.rows.map((r) => styleCodeOf(codeOf(r))).filter(Boolean));
   if (!parsed.rows.length || !codes.size) {
     $('uploadStatus').innerHTML = '<div class="error-box">No Style Codes found in the first column of that sheet.</div>';
     return false;
   }
-  $('fileSummary').innerHTML = `<b>${esc(loaded.name)}</b> — ${parsed.rows.length} rows, ${parsed.header.length} columns, <b>${codes.size}</b> unique style codes (first column: “${esc(parsed.header[0])}”).`;
+  $('fileSummary').innerHTML = `<b>${esc(loaded.name)}</b> — ${parsed.rows.length} rows, ${parsed.header.length} columns, <b>${codes.size}</b> unique style codes (text before the “-” in “${esc(parsed.header[0])}”).`;
   return true;
 }
 $('sheetSelect').onchange = refreshParsed;
@@ -257,7 +260,7 @@ $('runBtn').onclick = runExport;
 async function runExport() {
   const token = ++runToken;
   results = {}; outputAoa = null;
-  const codes = [...new Set(parsed.rows.map(codeOf).filter(Boolean))];
+  const codes = [...new Set(parsed.rows.map((r) => styleCodeOf(codeOf(r))).filter(Boolean))];
   $('stepOptions').hidden = true;
   $('stepRun').hidden = false;
   $('dlRow').hidden = true; $('tableWrap').hidden = true;
@@ -320,7 +323,7 @@ function finish(codes) {
   if (bad.length) {
     const li = bad.map((c) => {
       const r = results[c];
-      const rowsN = parsed.rows.filter((row) => codeOf(row) === c).length;
+      const rowsN = parsed.rows.filter((row) => styleCodeOf(codeOf(row)) === c).length;
       return `<li><b>${esc(c)}</b> — ${esc(r.message || r.status)}${rowsN > 1 ? ` (${rowsN} rows)` : ''}</li>`;
     }).join('');
     $('warnBox').innerHTML = `<div class="warn-box"><div class="t">⚠ ${bad.length} of ${codes.length} style code(s) need attention — those rows are kept with empty image cells:</div><ul>${li}</ul></div>`;
@@ -328,8 +331,8 @@ function finish(codes) {
 
   // preview table
   const shown = out.perRow.slice(0, 300);
-  $('tableWrap').innerHTML = `<table><thead><tr><th>${esc(parsed.header[0])}</th><th>Status</th><th>Images</th><th>Drive folder used</th></tr></thead><tbody>` +
-    shown.map(({ code, res }) => `<tr><td class="mono">${esc(code)}</td><td><span class="badge ${res.status.replace(' ', '')}">${esc(res.status)}</span></td><td class="mono">${(res.images || []).length}</td><td class="mono">${esc(res.matchedCode || '—')}</td></tr>`).join('') +
+  $('tableWrap').innerHTML = `<table><thead><tr><th>${esc(parsed.header[0])}</th><th>Style code</th><th>Status</th><th>Images</th></tr></thead><tbody>` +
+    shown.map(({ sku, code, res }) => `<tr><td class="mono">${esc(sku)}</td><td class="mono">${esc(code)}</td><td><span class="badge ${res.status.replace(' ', '')}">${esc(res.status)}</span></td><td class="mono">${(res.images || []).length}</td></tr>`).join('') +
     `</tbody></table>` + (out.perRow.length > shown.length ? `<div class="note" style="padding:8px">Showing first ${shown.length} of ${out.perRow.length} rows — the download has all of them.</div>` : '');
   $('tableWrap').hidden = false;
   $('dlRow').hidden = false;
