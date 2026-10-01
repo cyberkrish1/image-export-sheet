@@ -28,5 +28,5 @@ export default async function handler(req, res) {
       results[String(c ?? '').trim()] = { status: 'Error', images: [], message: err.message };
     }
     return res.status(200).json({ results });
-  }
+  } 
 }
