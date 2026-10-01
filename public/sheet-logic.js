@@ -77,3 +77,4 @@ function styleCodeOf(raw) {
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.SheetLogic = api;
 })(typeof window !== 'undefined' ? window : globalThis);
+ 
